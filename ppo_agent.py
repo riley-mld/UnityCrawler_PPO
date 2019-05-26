@@ -18,12 +18,12 @@ config = Configuration()
 class PPO_AGENT():
     """A class to create PPO Agents."""
     
-    def __init__(self, state_size, action_size, n_agents, seed):
+    def __init__(self, state_size, action_size, num_agents, seed):
         """Initialize the Agent."""
         
         self.state_size = state_size
         self.action_size = action_size
-        self.n_agents = n_agents
+        self.num_agents = num_agents
         self.seed = random.seed(seed)
         
         self.policy = Actor_Critic(state_size, action_size, seed)
@@ -90,7 +90,7 @@ class PPO_AGENT():
         # Normalize advantages estimate
         advantages = (advantages - advantages.mean())  / (advantages.std() + 1.0e-10)
                 
-        for _ in range(self.epochs):
+        for _ in range(config.epochs):
 
             for states_batch, actions_batch, old_log_probs_batch, returns_batch, advantages_batch in \
                 self.prepare_batch(states, actions, old_log_probs, returns, advantages):
@@ -121,12 +121,21 @@ class PPO_AGENT():
 
             
     def prepare_batch(self, states, actions, old_log_probs, returns, advantages):
-        length = states.shape[0] # nsteps * num_agents
+        """Prepare the batches."""
+        # nsteps * num_agents
+        length = states.shape[0]
         batch_size = int(length / config.num_batches)
         idx = np.random.permutation(length)
         for i in range(config.num_batches):
             rge = idx[i*batch_size:(i+1)*batch_size]
-            yield (
-                states[rge], actions[rge], old_log_probs[rge], returns[rge], advs[rge].squeeze(1)
-)
+            yield (states[rge], actions[rge], old_log_probs[rge], returns[rge], advs[rge].squeeze(1))
+            
+    def save(self):
+        """Save the trained model."""
+        torch.save(self.policy.state_dict(), 
+                   str(config.fc1_units)+'_'+str(config.fc2_units) + '_model.pth')
+        
+    def load(self, file):
+        """Load the trained model."""
+        self.policy.load_state_dict(torch.load(file))
         

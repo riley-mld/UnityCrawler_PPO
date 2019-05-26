@@ -8,6 +8,7 @@ from model import Actor_Critic
 
 import torch
 import torch.nn.functional as F
+import torch.nn as nn
 import torch.optim as optim
 
 
@@ -26,19 +27,19 @@ class PPO_AGENT():
         self.num_agents = num_agents
         self.seed = random.seed(seed)
         
-        self.policy = Actor_Critic(state_size, action_size, seed)
-        self.optimizer = optim.Adam(self.policy.parameters(), config.lr, weight_decay=lr.weight_decay)
+        self.policy = Actor_Critic(state_size, action_size, config.fc1_units, config.fc2_units, seed).to(config.device)
+        self.optimizer = optim.Adam(self.policy.parameters(), config.lr, weight_decay=config.weight_decay)
         
         self.trajectory = []
         
-    def act(self, state):
+    def act(self, states):
         """Act."""
-        states = torch.from_numpy(states).float().to(device)
+        states = torch.from_numpy(states).float().to(config.device)
         
         self.policy.eval()
         
         with torch.no_grad():
-            actions, log_prob, _, value = self.policy(state)
+            actions, log_prob, _, value = self.policy(states)
             
         self.policy.train()
         
@@ -46,7 +47,7 @@ class PPO_AGENT():
         value = value.detach().squeeze(1).cpu().numpy()
         actions = actions.detach().cpu().numpy()
         
-        return actions, log_prob, _, value
+        return actions, log_prob, value
     
     def save_step(self, trajectory):
         """Save the step to the trajectory."""
@@ -55,25 +56,50 @@ class PPO_AGENT():
     def process_trajectory(self, states):
         """Process Trajectory."""
         returns = self.act(states)[-1]
-        self.trajectory.append([states, returns, None, None, None, None])
+        returns = torch.Tensor(returns).to(config.device)
+        #states = torch.Tensor(states).to(config.device)
+        self.trajectory.append((states, None, None, None, returns.cpu().numpy(), None))
 
         processed_trajectory = [None] * (len(self.trajectory) - 1)
-        advantages = torch.Tensor(np.zeros((self.n_agent, 1))).to(config.device)
+        advantages = torch.Tensor(np.zeros((self.num_agents, 1))).to(config.device)
         #returns = p_value.detach()
         
         for i in reversed(range(len(self.trajectory) - 1)):
-            states, actions, rewards, log_prob, value, terminals = self.trajectory[i]
-            terminals = torch.Tensor(terminals).unsqueeze(1).to(config.device)
-            rewards = torch.Tensor(rewards).unsqueeze(1).to(config.device)
-            actions = torch.Tensor(actions).to(config.device)
-            states = torch.Tensor(states).to(config.device)
-            #log_probs =
-            #value =
-            next_value = self.trajectory[i + 1][1]
+            """
+            states, actions, rewards, log_probs, value, terminals = self.trajectory[i]
+            
+            #terminals = torch.Tensor(terminals).unsqueeze(1).to(config.device)
+            #rewards = torch.Tensor(rewards).unsqueeze(1).to(config.device)
+            #actions = torch.Tensor(actions).to(config.device)
+            #states = torch.Tensor(states).to(config.device)
+            #log_probs = torch.Tensor(log_probs).to(config.device)
+            #value = torch.Tensor(value).to(config.device)
+            #returns = torch.Tensor(returns).to(config.device)
+            actions, rewards, terminals, value, next_value, log_probs = map(
+                lambda x: torch.tensor(x).float().to(config.device),
+                (actions, rewards, terminals, value, self.trajectory[i+1][-2], log_probs))
+            
+            #next_value = self.trajectory[i + 1][-2]
+            #next_value = torch.Tensor(next_value).to(config.device)
+            
             returns = rewards + config.gamma * terminals * returns
             td_error = rewards + config.gamma * terminals * next_value.detach() - value.detach()
             advantages = advantages * config.gae_tau * config.gamma * terminals + td_error
-            processed_trajectory[i] = [states, actions, log_probs, returns, advantages]
+            processed_trajectory[i] = (states, actions, log_probs, returns, advantages)
+            """
+            
+            states, actions, rewards, log_probs, values, dones = self.trajectory[i]
+            actions, rewards, dones, values, next_values, log_probs = map(
+                lambda x: torch.tensor(x).float().to(config.device),
+                (actions, rewards, dones, values, self.trajectory[i+1][-2], log_probs)
+            )
+            returns = rewards + config.gamma * returns * dones
+            # without gae, advantage is calculated as:
+            #advs = R[:,None] - values[:,None]
+            td_errors = rewards + config.gamma * dones * next_values - values
+            advantages = advantages * config.gae_tau * config.gamma * dones[:, None] + td_errors[:, None]
+            # with gae
+            processed_trajectory[i] = (states, actions, log_probs, returns, advantages)
 
         # reset trajectory
         self.trajectory = []
@@ -128,7 +154,7 @@ class PPO_AGENT():
         idx = np.random.permutation(length)
         for i in range(config.num_batches):
             rge = idx[i*batch_size:(i+1)*batch_size]
-            yield (states[rge], actions[rge], old_log_probs[rge], returns[rge], advs[rge].squeeze(1))
+            yield (states[rge], actions[rge], old_log_probs[rge], returns[rge], advantages[rge].squeeze(1))
             
     def save(self):
         """Save the trained model."""

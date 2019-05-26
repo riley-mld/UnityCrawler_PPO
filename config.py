@@ -10,7 +10,7 @@ LR = 1e-3
 # Weight decay
 WEIGHT_DECAY
 # Number of epochs per iteration
-EPOCH = 10
+EPOCHS = 10
 # Maximum number of timesteps per trajector
 HORIZON = 100
 # Epsilon for the ratio clip
@@ -35,7 +35,7 @@ class Configuration():
     def __init__(self):
         """Initialize the class."""
         self.gamma = GAMMA
-        self.epoch = EPOCH
+        self.epochs = EPOCHS
         self.horizon = HORIZON
         self.epsilon = EPSILON
         self.beta = BETA

@@ -33,7 +33,7 @@ class PPO_AGENT():
         self.trajectory = []
         
     def act(self, states):
-        """Act."""
+        """Choose an action and return V and log_prob."""
         states = torch.from_numpy(states).float().to(config.device)
         
         self.policy.eval()
@@ -57,48 +57,22 @@ class PPO_AGENT():
         """Process Trajectory."""
         returns = self.act(states)[-1]
         returns = torch.Tensor(returns).to(config.device)
-        #states = torch.Tensor(states).to(config.device)
         self.trajectory.append((states, None, None, None, returns.cpu().numpy(), None))
 
         processed_trajectory = [None] * (len(self.trajectory) - 1)
         advantages = torch.Tensor(np.zeros((self.num_agents, 1))).to(config.device)
-        #returns = p_value.detach()
         
         for i in reversed(range(len(self.trajectory) - 1)):
-            """
-            states, actions, rewards, log_probs, value, terminals = self.trajectory[i]
-            
-            #terminals = torch.Tensor(terminals).unsqueeze(1).to(config.device)
-            #rewards = torch.Tensor(rewards).unsqueeze(1).to(config.device)
-            #actions = torch.Tensor(actions).to(config.device)
-            #states = torch.Tensor(states).to(config.device)
-            #log_probs = torch.Tensor(log_probs).to(config.device)
-            #value = torch.Tensor(value).to(config.device)
-            #returns = torch.Tensor(returns).to(config.device)
-            actions, rewards, terminals, value, next_value, log_probs = map(
-                lambda x: torch.tensor(x).float().to(config.device),
-                (actions, rewards, terminals, value, self.trajectory[i+1][-2], log_probs))
-            
-            #next_value = self.trajectory[i + 1][-2]
-            #next_value = torch.Tensor(next_value).to(config.device)
-            
-            returns = rewards + config.gamma * terminals * returns
-            td_error = rewards + config.gamma * terminals * next_value.detach() - value.detach()
-            advantages = advantages * config.gae_tau * config.gamma * terminals + td_error
-            processed_trajectory[i] = (states, actions, log_probs, returns, advantages)
-            """
-            
             states, actions, rewards, log_probs, values, dones = self.trajectory[i]
             actions, rewards, dones, values, next_values, log_probs = map(
                 lambda x: torch.tensor(x).float().to(config.device),
-                (actions, rewards, dones, values, self.trajectory[i+1][-2], log_probs)
-            )
+                (actions, rewards, dones, values, self.trajectory[i+1][-2], log_probs))
+            
             returns = rewards + config.gamma * returns * dones
-            # without gae, advantage is calculated as:
-            #advs = R[:,None] - values[:,None]
+            
             td_errors = rewards + config.gamma * dones * next_values - values
             advantages = advantages * config.gae_tau * config.gamma * dones[:, None] + td_errors[:, None]
-            # with gae
+            
             processed_trajectory[i] = (states, actions, log_probs, returns, advantages)
 
         # reset trajectory
@@ -107,8 +81,7 @@ class PPO_AGENT():
         return processed_trajectory
         
     def step(self, states):
-        """STEP."""
-        
+        """Learning step of PPO algorithm."""
         processed_trajectory = self.process_trajectory(states)
         
         states, actions, old_log_probs, returns, advantages = map(lambda x: torch.cat(x, dim=0), zip(*processed_trajectory))
@@ -135,11 +108,13 @@ class PPO_AGENT():
                 actor_loss = -torch.mean(clipped_surrogate) - config.beta * entropy_batch.mean()
                 # Calculate Critic Loss
                 critic_loss = F.smooth_l1_loss(values_batch, returns_batch.unsqueeze(1))
+                # The final loss will be Actor + Critic loss
+                loss = actor_loss + critic_loss
                 
                 # Reset the gradient
                 self.optimizer.zero_grad()
                 # Calculate Gradient
-                (actor_loss + critic_loss).backward()
+                loss.backward()
                 # Clip the gradient
                 nn.utils.clip_grad_norm_(self.policy.parameters(), config.gradient_clip)
                 # Gradient Descent
@@ -148,18 +123,18 @@ class PPO_AGENT():
             
     def prepare_batch(self, states, actions, old_log_probs, returns, advantages):
         """Prepare the batches."""
-        # nsteps * num_agents
+        # length = nsteps * num_agents
         length = states.shape[0]
         batch_size = int(length / config.num_batches)
         idx = np.random.permutation(length)
+        
         for i in range(config.num_batches):
-            rge = idx[i*batch_size:(i+1)*batch_size]
-            yield (states[rge], actions[rge], old_log_probs[rge], returns[rge], advantages[rge].squeeze(1))
+            b_range = idx[i*batch_size:(i+1)*batch_size]
+            yield (states[b_range], actions[b_range], old_log_probs[b_range], returns[b_range], advantages[b_range].squeeze(1))
             
     def save(self):
         """Save the trained model."""
-        torch.save(self.policy.state_dict(), 
-                   str(config.fc1_units)+'_'+str(config.fc2_units) + '_model.pth')
+        torch.save(self.policy.state_dict(), str(config.fc1_units)+'_'+str(config.fc2_units) + '_model.pth')
         
     def load(self, file):
         """Load the trained model."""

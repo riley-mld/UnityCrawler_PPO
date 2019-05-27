@@ -6,24 +6,24 @@ NUM_BATCHES = 32
 # Discount Factor
 GAMMA = 0.99
 # Actor learning rate
-LR = 1e-3
+LR = 2e-4
 # Weight decay
 WEIGHT_DECAY = 0
 # Number of epochs per iteration
 EPOCHS = 10
 # Maximum number of timesteps per trajector
-HORIZON = 200
+HORIZON = 2048
 # Epsilon for the ratio clip
 EPSILON = 0.2
 # Entropy coefficient
-BETA = 0.01
+BETA = 0.0
 # Generalized Advantage Estimate tau coefficient
 GAE_TAU = 0.95
 # Number of nodes in Actor network
 FC1_UNITS = 512
 FC2_UNITS = 256
 # Clip grad
-GRADIENT_CLIP = 1
+GRADIENT_CLIP = 0.5
 
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")

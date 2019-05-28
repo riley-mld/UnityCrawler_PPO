@@ -109,7 +109,7 @@ class PPO_AGENT():
                 # Calculate Critic Loss
                 critic_loss = F.smooth_l1_loss(values_batch, returns_batch.unsqueeze(1))
                 # The final loss will be Actor + Critic loss
-                loss = actor_loss + critic_loss
+                loss = actor_loss + (config.c1 * critic_loss)
                 
                 # Reset the gradient
                 self.optimizer.zero_grad()

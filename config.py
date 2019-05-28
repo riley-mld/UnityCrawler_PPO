@@ -6,7 +6,7 @@ NUM_BATCHES = 32
 # Discount Factor
 GAMMA = 0.99
 # Actor learning rate
-LR = 2e-4
+LR = 1e-4
 # Weight decay
 WEIGHT_DECAY = 0
 # Number of epochs per iteration
@@ -17,6 +17,8 @@ HORIZON = 2048
 EPSILON = 0.2
 # Entropy coefficient
 BETA = 0.0
+# Value loss coefficient
+C1 = 1.0
 # Generalized Advantage Estimate tau coefficient
 GAE_TAU = 0.95
 # Number of nodes in Actor network
@@ -39,6 +41,7 @@ class Configuration():
         self.horizon = HORIZON
         self.epsilon = EPSILON
         self.beta = BETA
+        self.c1 = C1
         self.gae_tau = GAE_TAU
         self.num_batches = NUM_BATCHES
         

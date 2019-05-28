@@ -1,5 +1,5 @@
 
-### Unity Crawler Environment
+# Unity Crawler Environment
 
 ![](Assets/TrainedAgent.gif)
 

@@ -2,6 +2,8 @@
 ### Unity Crawler Environment
 
 ![](Assets/TrainedAgent.gif)
+
+
 To watch a video of the trained agent [click here](https://vimeo.com/338992399)
 
 ## Introduction
